@@ -6,9 +6,9 @@
 
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #ffffff;
-      color: #0040FF;
+      font-family: "Helvetica Neue", "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #F7F4EE;
+      color: #111;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -23,7 +23,7 @@
 
     h1 {
       font-size: 20px;
-      font-weight: 500;
+      font-weight: 400;
       margin-bottom: 20px;
     }
 
@@ -32,23 +32,15 @@
       padding: 10px 0;
       font-size: 16px;
       border: none;
-      border-bottom: 2px solid #ddd;
+      border-bottom: 1px solid #ddd;
       outline: none;
       margin-bottom: 10px;
       background: transparent;
-      transition: border-color 0.3s ease;
     }
 
-    /* animated “ready to type” line */
     input:focus {
       border-bottom-color: #111;
       animation: pulse 1.2s infinite;
-    }
-
-    @keyframes pulse {
-      0% { border-bottom-color: #111; }
-      50% { border-bottom-color: #888; }
-      100% { border-bottom-color: #111; }
     }
 
     ul {
@@ -65,15 +57,23 @@
 
     li.done {
       text-decoration: line-through;
-      color: #888;
+      color: #ddd;
+    }
+
+    .edit-input {
+      width: 100%;
+      border: none;
+      outline: none;
+      font-size: 16px;
+      background: transparent;
     }
   </style>
 </head>
 
 <body>
   <div class="container">
-    <h1>What's your plan for today?</h1>
-    <input id="todo-input" />
+    <h1>Intention for browsing:</h1>
+    <input id="todo-input" autocomplete="off" />
     <ul id="todo-list"></ul>
   </div>
 
@@ -92,37 +92,64 @@
       return /^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/.*)?$/.test(text);
     }
 
-    function formatLabel(url) {
-      try {
-        if (!url.startsWith('http')) url = 'https://' + url;
-        const host = new URL(url).hostname;
-        return host.replace(/^www\./, '').split('.')[0];
-      } catch {
-        return url;
-      }
-    }
-
     function normalizeURL(url) {
       if (!url.startsWith('http')) return 'https://' + url;
       return url;
+    }
+
+    function capitalize(text) {
+      return text.charAt(0).toUpperCase() + text.slice(1);
     }
 
     function loadTodos() {
       const data = JSON.parse(localStorage.getItem('daily-todos'));
       list.innerHTML = '';
 
-      data.items.forEach((item) => {
+      // sort: undone first, done last
+      const sorted = [...data.items].sort((a, b) => a.done - b.done);
+
+      sorted.forEach((item) => {
         const li = document.createElement('li');
         li.textContent = item.text;
+
         if (item.done) li.classList.add('done');
 
+        // toggle done
         li.onclick = () => {
           item.done = !item.done;
           saveTodos(data.items);
         };
 
+        // double click to edit
+        li.ondblclick = (e) => {
+          e.stopPropagation();
+
+          const edit = document.createElement('input');
+          edit.className = 'edit-input';
+          edit.value = item.text;
+
+          li.innerHTML = '';
+          li.appendChild(edit);
+          edit.focus();
+
+          edit.addEventListener('blur', () => finishEdit(edit, item, data));
+          edit.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') finishEdit(edit, item, data);
+          });
+        };
+
         list.appendChild(li);
       });
+    }
+
+    function finishEdit(inputEl, item, data) {
+      const newValue = inputEl.value.trim();
+      if (newValue) {
+        item.text = capitalize(newValue);
+        saveTodos(data.items);
+      } else {
+        loadTodos();
+      }
     }
 
     function saveTodos(items) {
@@ -138,7 +165,7 @@
 
       const data = JSON.parse(localStorage.getItem('daily-todos'));
 
-      // 🔎 Google search command: "s: something"
+      // search command
       if (value.toLowerCase().startsWith('s:')) {
         const query = value.slice(2).trim();
         if (query) {
@@ -149,28 +176,26 @@
         return;
       }
 
-      // 🌐 URL redirect behavior
+      // URL → redirect ONLY (no list entry)
       if (isURL(value)) {
         const url = normalizeURL(value);
-        const label = formatLabel(value);
-
-        data.items.push({ text: label, done: true });
-        saveTodos(data.items);
-
         input.value = '';
         window.location.href = url;
         return;
       }
 
-      // normal todo item
-      data.items.push({ text: value, done: false });
+      // normal item
+      data.items.push({
+        text: capitalize(value),
+        done: false
+      });
+
       saveTodos(data.items);
       input.value = '';
     });
 
     loadTodos();
 
-    // auto-focus on launch
     window.addEventListener('load', () => {
       input.focus();
     });
